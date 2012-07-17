@@ -1,0 +1,15 @@
+# macroparser
+
+This is a library for "parsing" clojure data structures, with the intention of making it easier to describe and extract the components of complex macros.
+
+Note that despite what is said in project.clj, it actually depends on the current development version of parsatron---it won't work with the released version.
+
+## Usage
+
+FIXME: write
+
+## License
+
+Copyright (C) 2012 FIXME
+
+Distributed under the Eclipse Public License, the same as Clojure.

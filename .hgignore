@@ -1,0 +1,9 @@
+syntax: glob
+*~
+lib
+checkouts
+
+syntax: re
+
+#.*#
+\.#.*
