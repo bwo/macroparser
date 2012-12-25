@@ -81,7 +81,7 @@
 
 (make-type-matcher symbol)
 
-(defn- symbols-but
+(defn symbols-but
   "match any symbol but those provided as arguments"
   [& syms]
   (token (fn [inp] (and (symbol? inp) (not-any? #(= inp %) syms)))))
