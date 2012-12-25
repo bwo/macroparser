@@ -62,7 +62,7 @@
   "Like >> for nxt. Expands into repeated both forms, flattened. (It will *parse* a *seq*uence.)"
   ([p] p)
   ([p q] `(both ~p ~q))
-  ([p q & rs] `(>>= (both ~p (parseq ~q ~@rs)) (fn [[x# [y# z#]]] [x# y# z#]))))
+  ([p q & rs] `(>>= (both ~p (parseq ~q ~@rs)) (fn [[x# rest#]] (concat [x#] rest#)))))
 
 (defn ->map
   "Construct a single map from a sequence of named parsers."
@@ -116,6 +116,7 @@
                (let [on-err# (expect-type ~s)
                      input# (:input state#)
                      pos# (:pos state#)]
+                 (println input#)
                  (if-let [tok# (first input#)]
                    (if (~test tok#)
                      (let [result# (run-inferior
@@ -208,7 +209,15 @@
                      (list (both (symbols 'and 'or)
                                  (many1 (atom-parser))))))
 
-#_(defn defn-parser
-  (let->> [_ (symbol 'defn)
-           name (symbol)
-           ]))
+(defn defn-parser []
+  (->map
+   (parseq
+    (named :defn (symbol 'defn))
+    (named :name (symbol))
+    (named :docstring (optional (string)))
+    (named :attr-map (optional (map)))
+    (either
+     (named :arities (->map (both (named :params (binding-form))
+                                  (named :body (many (expression))))))
+     (named :arities (many1 (list (->map (both (named :params (binding-form))
+                                               (named :body (many (expression))))))))))))
