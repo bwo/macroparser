@@ -1,7 +1,7 @@
 (ns macroparser.core
   (:refer-clojure :exclude [symbol vector keyword char map list])
   (:use the.parsatron)
-  (:import [the.parsatron Ok Err InputState LineColPos Continue ParseError])
+  (:import [the.parsatron Ok Err InputState LineColPos Continue])
   (:require [clojure.core :as clj]))
 
 ;; some extra general functions
@@ -21,7 +21,7 @@
   (fn [{:keys [input pos] :as state} cok cerr eok eerr]
     (if-let [tok (first input)]
       (if-let [res (f tok)]
-        (cok res (InputState. (rest input) (increment-position pos tok)))
+        (cok res (InputState. (rest input) (increment-position pos tok)))        
         (eerr (err tok pos)))
       (eerr (err ::eof pos)))))
 
@@ -32,11 +32,11 @@
     (run-parser p state)))
 
 (defn expect-type [tname]
-  (fn [got pos] (ParseError. pos [(str "expected " tname ", got " (ckeof got (fn [_] (str (type got) ": " got))))])))
+  (fn [got pos] (error-at pos (str "expected " tname ", got " (ckeof got (fn [_] (str (type got) ": " got)))))))
 (defn expect-specific [thing]
-  (fn [got pos] (ParseError. pos [(str "expected " thing ", got " (ckeof got identity))])))
+  (fn [got pos] (error-at pos (str "expected " thing ", got " (ckeof got identity)))))
 (defn expect-several [things]
-  (fn [got pos] (ParseError. pos [(str "expected one of " things ", got " (ckeof got identity))])))
+  (fn [got pos] (error-at pos (str "expected one of " things ", got " (ckeof got identity)))))
 
 (defn token-err [f err]
   (token-err-by (fn [tok] (if (f tok) tok nil)) err))
@@ -52,11 +52,6 @@
 
 (defn named [name parser]
   (>>= parser (fn [res] {name res})))
-
-(defn optional
-  "Attempt to parse p, and on failure proceed without consuming input."
-  [p]
-  (>>= (choice (times 1 p) (times 0 p)) first))
 
 (defmacro parseq
   "Like >> for nxt. Expands into repeated both forms, flattened. (It will *parse* a *seq*uence.)"
@@ -116,7 +111,6 @@
                (let [on-err# (expect-type ~s)
                      input# (:input state#)
                      pos# (:pos state#)]
-                 (println input#)
                  (if-let [tok# (first input#)]
                    (if (~test tok#)
                      (let [result# (run-inferior
@@ -133,10 +127,6 @@
                          Err (eerr# (:errmsg result#))))
                      (eerr# (on-err# tok# pos#)))
                    (eerr# (on-err# ::eof pos#)))))))))
-
-(extend-type java.lang.String
-  ShowableError
-  (show-error [s] s))
 
 (make-container-parser vector identity)
 (make-container-parser list identity)
@@ -195,29 +185,17 @@
 
 (defparser binding-pairs [] (many (binding-pair)))
 
-(defn op [] (symbols '= '< '>))
-(defn field-part [] (list (both
-                           (keyword)
-                           (many1 (list (both (op) (expression)))))))
-(defn fn-part [] (list (parseq
-                       (symbol 'fn)
-                       (symbol)
-                       (expression))))
-(defn atom-parser [] (either (field-part) (fn-part)))
-(defn query-parser [] (choice
-                     (atom-parser)
-                     (list (both (symbols 'and 'or)
-                                 (many1 (atom-parser))))))
+(defn params-and-body []
+  (->map (both (named :params (binding-form))
+               (named :body (many (expression))))))
 
 (defn defn-parser []
   (->map
    (parseq
     (named :defn (symbol 'defn))
     (named :name (symbol))
-    (named :docstring (optional (string)))
-    (named :attr-map (optional (map)))
-    (either
-     (named :arities (->map (both (named :params (binding-form))
-                                  (named :body (many (expression))))))
-     (named :arities (many1 (list (->map (both (named :params (binding-form))
-                                               (named :body (many (expression))))))))))))
+    (named :docstring (maybe (string)))
+    (named :attr-map (maybe (map)))
+    (named :arities
+           (either (>>= (params-and-body) clojure.core/list)
+            (many1 (list (params-and-body))))))))
