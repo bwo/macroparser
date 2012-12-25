@@ -64,7 +64,7 @@
    (named :attr-map (maybe (map)))
    (named :arities
           (either (lift clj/list (params-and-body))
-                  (many1 (list (params-and-body)))))))
+                  (>>1 (many1 (list (params-and-body))) (eof))))))
 
 (declare unparse-bindings)
 
