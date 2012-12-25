@@ -41,28 +41,29 @@
 (defn token-err [f err]
   (token-err-by (fn [tok] (if (f tok) tok nil)) err))
 
-(defmacro >>=
-  "(>>= p f) -> (bind p (comp always f)"
-  [p f] `(bind ~p (comp always ~f)))
+(defn lift
+  "(lift f p) -> (bind p (comp always f)"
+  [f p] (bind p (comp always f)))
 
 (defn both
   "Parse p and then q, returning the results of both in order."
   [p q]
-  (bind p (fn [pres] (>>= q (fn [qres] [pres qres])))))
+  (bind p (fn [pres] (lift (fn [qres] [pres qres]) q))))
 
 (defn named [name parser]
-  (>>= parser (fn [res] {name res})))
+  (lift (fn [res] {name res}) parser))
 
 (defmacro parseq
   "Like >> for nxt. Expands into repeated both forms, flattened. (It will *parse* a *seq*uence.)"
   ([p] p)
   ([p q] `(both ~p ~q))
-  ([p q & rs] `(>>= (both ~p (parseq ~q ~@rs)) (fn [[x# rest#]] (concat [x#] rest#)))))
+  ([p q & rs] `(lift (fn [[x# rest#]] (concat [x#] rest#))
+                     (both ~p (parseq ~q ~@rs)))))
 
 (defn ->map
   "Construct a single map from a sequence of named parsers."
   [p]  
-  (>>= p (fn [m] (if (map? m) m (apply merge m)))))
+  (lift (fn [m] (if (map? m) m (apply merge m))) p))
 
 (defmacro ^{:private true} make-type-matcher [name]
   (let [s (str name)
@@ -118,13 +119,13 @@
                                              _# (eof)]
                                             (always r#))
                                     (~preprocessor tok#)
-                                    (inc (:line pos#)))]                       
+                                    (inc (:line pos#)))]
                        (condp instance? result#
                          Ok (cok#
                              (:item result#)
                              (InputState. (rest input#)
                                           (increment-position pos# tok#)))
-                         Err (eerr# (:errmsg result#))))
+                         Err (eerr# (:errors result#))))
                      (eerr# (on-err# tok# pos#)))
                    (eerr# (on-err# ::eof pos#)))))))))
 
@@ -132,53 +133,63 @@
 (make-container-parser list identity)
 (make-container-parser map (comp flatten-1 seq))
 
+(defn caseparse-noconsume
+  "Run p, wrapped in a maybe, without consuming input, and run one of
+  the parsers in the cases map depending on p's output."
+  [p cases]
+  (bind (lookahead (maybe p)) #(get cases % (never))))
+
+(defn caseparse
+  "Run p, wrapped in a maybe, consuming input, and run one of the
+  parsers in the cases map depending on p's result."
+  [p cases]
+  (bind (maybe p) #(get cases % (never))))
+
 ;; example!
 
 (declare binding-form)
 
 (defn- as-part []
-  (both (keyword :as) (symbol)))
+  (>> (keyword :as) (symbol)))
 (defn- or-part [p]
-  (both (keyword :or) p))
+  (>> (keyword :or) p))
 (defn- rest-part []
   (>> (symbol '&) (binding-form)))
 
 (declare map-binding)
 
 (defparser vector-binding []
-  (>>= (parseq (many (choice (vector (vector-binding))
-                             (map (map-binding))
-                             (symbols-but '&)))
-               (maybe (rest-part))
-               (>>= (maybe (as-part)) second))
-       #(zipmap [:bindings :rest :as] %)))
+  (lift #(merge {:type :vector} (zipmap [:bindings :rest :as] %))
+        (parseq (many (choice (vector (vector-binding))
+                              (map (map-binding))
+                              (symbols-but '&)))
+                (maybe (rest-part))
+                (maybe (as-part)))))
+
+(defn binding-form-simple []
+  (choice (symbol) (vector (vector-binding)) (map (map-binding))))
 
 (defparser map-binding []
-  (let->>
-   [bindings (choice (both (keywords :strs :syms :keys) (vector (many1 (symbol))))
-                     (many1 (both (choice
-                                   (symbol)
-                                   (vector (vector-binding))
-                                   (map (map-binding)))
-                                  (expression))))
-    mod-parts (times 2 (maybe (either (or-part (map))
-                                      (as-part))))]
-   (let [mod-parts (apply merge (clj/map (fn [v] (when v {(first v) (second v)})) mod-parts))]
-     (always {:bindings bindings :mod-parts mod-parts}))))
-
-(defn map->binding [{:keys [bindings mod-parts rest as] :or {bindings [] mod-parts nil rest nil as nil}}]
-  (let [bindings (clj/map #(if (map? %) (map->binding %) %) bindings)
-        mod-parts (merge {:as as} mod-parts)]
-    (vec (concat bindings
-                 (when rest ['& rest])
-                 (when-let [or (:or mod-parts)] [:or or])
-                 (when-let [as (:as mod-parts)] [:as as])))))
+  (lift #(merge {:type :map} %)
+        (->map
+         (parseq
+          (named :bindings
+                 (choice
+                  (bind (keywords :strs :syms :keys)
+                        #(named % (vector (many (symbol)))))
+                  (named :standard
+                         (many (both (binding-form-simple)
+                                     (expression))))))
+          (caseparse-noconsume (keywords :or :as)
+                               {:or (->map (both (named :or (or-part (map)))
+                                                 (maybe (named :as (as-part)))))
+                                :as (->map (both (named :as (as-part))
+                                                 (maybe (named :or (or-part (map))))))
+                                nil (always {:or nil :as nil})})))))
 
 (defparser binding-form []
   (choice (>> (eof) (always true))
-          (symbol)
-          (vector (vector-binding))
-          (map (map-binding))))
+          (binding-form-simple)))
 
 (defparser binding-pair []
   (both (binding-form) (expression)))
@@ -186,7 +197,7 @@
 (defparser binding-pairs [] (many (binding-pair)))
 
 (defn params-and-body []
-  (->map (both (named :params (binding-form))
+  (->map (both (named :params (vector (vector-binding)))
                (named :body (many (expression))))))
 
 (defn defn-parser []
@@ -197,5 +208,5 @@
     (named :docstring (maybe (string)))
     (named :attr-map (maybe (map)))
     (named :arities
-           (either (>>= (params-and-body) clojure.core/list)
+           (either (lift clj/list (params-and-body))
             (many1 (list (params-and-body))))))))
