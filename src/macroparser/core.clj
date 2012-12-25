@@ -1,7 +1,7 @@
 (ns macroparser.core
   (:refer-clojure :exclude [symbol vector keyword char map list])
   (:use the.parsatron)
-  (:import [the.parsatron Ok Err InputState SourcePos Continue ParseError])
+  (:import [the.parsatron Ok Err InputState LineColPos Continue ParseError])
   (:require [clojure.core :as clj]))
 
 ;; some extra general functions
@@ -12,7 +12,7 @@
   (fn [{:keys [input pos] :as state} cok cerr eok eerr]
     (if-let [tok (first input)]
       (if-let [res (f tok)]
-        (cok res (InputState. (rest input) (inc-sourcepos pos tok)))
+        (cok res (InputState. (rest input) (increment-position pos tok)))
         (eerr (unexpect-error (str "token '" tok "'") pos)))
       (eerr (unexpect-error "end of input" pos)))))
 
@@ -21,14 +21,14 @@
   (fn [{:keys [input pos] :as state} cok cerr eok eerr]
     (if-let [tok (first input)]
       (if-let [res (f tok)]
-        (cok res (InputState. (rest input) (inc-sourcepos pos tok)))
+        (cok res (InputState. (rest input) (increment-position pos tok)))
         (eerr (err tok pos)))
       (eerr (err ::eof pos)))))
 
-(defn ckeof [got f] (if (= got ::eof) (do (println "yes") "end of input") (f got)))
+(defn ckeof [got f] (if (= got ::eof) "end of input" (f got)))
 
 (defn run-inferior [p input nesting]
-  (let [state (InputState. input (SourcePos. nesting 1))]
+  (let [state (InputState. input (LineColPos. nesting 1))]
     (run-parser p state)))
 
 (defn expect-type [tname]
@@ -50,11 +50,24 @@
   [p q]
   (bind p (fn [pres] (>>= q (fn [qres] [pres qres])))))
 
+(defn named [name parser]
+  (>>= parser (fn [res] {name res})))
+
+(defn optional
+  "Attempt to parse p, and on failure proceed without consuming input."
+  [p]
+  (>>= (choice (times 1 p) (times 0 p)) first))
+
 (defmacro parseq
   "Like >> for nxt. Expands into repeated both forms, flattened. (It will *parse* a *seq*uence.)"
   ([p] p)
   ([p q] `(both ~p ~q))
   ([p q & rs] `(>>= (both ~p (parseq ~q ~@rs)) (fn [[x# [y# z#]]] [x# y# z#]))))
+
+(defn ->map
+  "Construct a single map from a sequence of named parsers."
+  [p]  
+  (>>= p (fn [m] (if (map? m) m (apply merge m)))))
 
 (defmacro ^{:private true} make-type-matcher [name]
   (let [s (str name)
@@ -115,7 +128,7 @@
                          Ok (cok#
                              (:item result#)
                              (InputState. (rest input#)
-                                          (inc-sourcepos pos# tok#)))
+                                          (increment-position pos# tok#)))
                          Err (eerr# (:errmsg result#))))
                      (eerr# (on-err# tok# pos#)))
                    (eerr# (on-err# ::eof pos#)))))))))
@@ -128,13 +141,16 @@
 (make-container-parser list identity)
 (make-container-parser map (comp flatten-1 seq))
 
+;; example!
+
+(declare binding-form)
 
 (defn- as-part []
   (both (keyword :as) (symbol)))
 (defn- or-part [p]
   (both (keyword :or) p))
 (defn- rest-part []
-  (>> (symbol '&) (symbol)))
+  (>> (symbol '&) (binding-form)))
 
 (declare map-binding)
 
@@ -156,7 +172,8 @@
                                   (expression))))
     mod-parts (times 2 (maybe (either (or-part (map))
                                       (as-part))))]
-   (always {:bindings bindings :mod-parts mod-parts})))
+   (let [mod-parts (apply merge (clj/map (fn [v] (when v {(first v) (second v)})) mod-parts))]
+     (always {:bindings bindings :mod-parts mod-parts}))))
 
 (defn map->binding [{:keys [bindings mod-parts rest as] :or {bindings [] mod-parts nil rest nil as nil}}]
   (let [bindings (clj/map #(if (map? %) (map->binding %) %) bindings)
@@ -190,3 +207,8 @@
                      (atom-parser)
                      (list (both (symbols 'and 'or)
                                  (many1 (atom-parser))))))
+
+#_(defn defn-parser
+  (let->> [_ (symbol 'defn)
+           name (symbol)
+           ]))
