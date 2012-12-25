@@ -62,6 +62,13 @@
   ([p q & rs] `(lift (fn [[x# rest#]] (concat [x#] rest#))
                      (both ~p (parseq ~q ~@rs)))))
 
+(defn parse1
+  "Run a sequence of parsers, returning the result of the first parser."
+  ([p p2] (lift first (both p p2)))
+  ([p p2 & ps] (lift first (both p (apply parse1 p2 ps)))))
+
+(def >>1 parse1)
+
 (defn ->map
   "Construct a single map from a sequence of named parsers."
   [p]  
