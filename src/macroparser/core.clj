@@ -41,14 +41,16 @@
 (defn token-err [f err]
   (token-err-by (fn [tok] (if (f tok) tok nil)) err))
 
+(def >>= bind)
+
 (defn lift
-  "(lift f p) -> (bind p (comp always f)"
+  "(lift f p) -> (>>= p (comp always f)"
   [f p] (bind p (comp always f)))
 
 (defn both
   "Parse p and then q, returning the results of both in order."
   [p q]
-  (bind p (fn [pres] (lift (fn [qres] [pres qres]) q))))
+  (>>= p (fn [pres] (lift (fn [qres] [pres qres]) q))))
 
 (defn named [name parser]
   (lift (fn [res] {name res}) parser))
@@ -64,6 +66,10 @@
   "Construct a single map from a sequence of named parsers."
   [p]  
   (lift (fn [m] (if (map? m) m (apply merge m))) p))
+
+(defmacro parseq->map
+  [& parsers]
+  `(->map (parseq ~@parsers)))
 
 (defmacro ^{:private true} make-type-matcher [name]
   (let [s (str name)
@@ -137,13 +143,13 @@
   "Run p, wrapped in a maybe, without consuming input, and run one of
   the parsers in the cases map depending on p's output."
   [p cases]
-  (bind (lookahead (maybe p)) #(get cases % (never))))
+  (>>= (lookahead (maybe p)) #(get cases % (never))))
 
 (defn caseparse
   "Run p, wrapped in a maybe, consuming input, and run one of the
   parsers in the cases map depending on p's result."
   [p cases]
-  (bind (maybe p) #(get cases % (never))))
+  (>>= (maybe p) #(get cases % (never))))
 
 ;; example!
 
@@ -171,21 +177,20 @@
 
 (defparser map-binding []
   (lift #(merge {:type :map} %)
-        (->map
-         (parseq
-          (named :bindings
-                 (choice
-                  (bind (keywords :strs :syms :keys)
-                        #(named % (vector (many (symbol)))))
-                  (named :standard
-                         (many (both (binding-form-simple)
-                                     (expression))))))
-          (caseparse-noconsume (keywords :or :as)
-                               {:or (->map (both (named :or (or-part (map)))
-                                                 (maybe (named :as (as-part)))))
-                                :as (->map (both (named :as (as-part))
-                                                 (maybe (named :or (or-part (map))))))
-                                nil (always {:or nil :as nil})})))))
+        (parseq->map
+         (named :bindings
+                (choice
+                 (>>= (keywords :strs :syms :keys)
+                      #(named % (vector (many (symbol)))))
+                 (named :standard
+                        (many (both (binding-form-simple)
+                                    (expression))))))
+         (caseparse-noconsume (keywords :or :as)
+                              {:or (parseq->map (named :or (or-part (map)))
+                                                (maybe (named :as (as-part))))
+                               :as (parseq->map (named :as (as-part))
+                                                (maybe (named :or (or-part (map)))))
+                               nil (always {:or nil :as nil})}))))
 
 (defparser binding-form []
   (choice (>> (eof) (always true))
@@ -197,16 +202,15 @@
 (defparser binding-pairs [] (many (binding-pair)))
 
 (defn params-and-body []
-  (->map (both (named :params (vector (vector-binding)))
-               (named :body (many (expression))))))
+  (parseq->map (named :params (vector (vector-binding)))
+               (named :body (many (expression)))))
 
 (defn defn-parser []
-  (->map
-   (parseq
-    (named :defn (symbol 'defn))
-    (named :name (symbol))
-    (named :docstring (maybe (string)))
-    (named :attr-map (maybe (map)))
-    (named :arities
-           (either (lift clj/list (params-and-body))
-            (many1 (list (params-and-body))))))))
+  (parseq->map   
+   (named :defn (symbol 'defn))
+   (named :name (symbol))
+   (named :docstring (maybe (string)))
+   (named :attr-map (maybe (map)))
+   (named :arities
+          (either (lift clj/list (params-and-body))
+                  (many1 (list (params-and-body)))))))
