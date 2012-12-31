@@ -52,6 +52,11 @@
   [p q]
   (>>= p (fn [pres] (lift (fn [qres] [pres qres]) q))))
 
+(defn either+
+  "Like either, but try the second parser even if the first parser did consume input."
+  [p q]
+  (either (attempt p) q))
+
 (defn named [name parser]
   (lift (fn [res] {name res}) parser))
 
