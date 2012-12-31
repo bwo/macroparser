@@ -145,10 +145,11 @@
 
 (defparser let-expression []
   (lift #(do {:type :let :bindings %})
-        (>> (symbol 'let) (many1 (attempt (let->> [bound (binding-form-simple)
-                                                   _ (symbol '=)
-                                                   expr (expression)]
-                                                  (always {:bound bound :expr expr})))))))
+        (>> (symbol 'let)
+            (many1 (attempt (let->> [bound (binding-form-simple)
+                                     _ (symbol '=)
+                                     expr (expression)]
+                                    (always {:bound bound :expr expr})))))))
 
 (defparser normal-expression []
   (lift (fn [expr] {:bound (gensym) :expr expr :type :normal})
@@ -168,7 +169,7 @@
 
 (defmacro mdo [& exprs]
   (let [parsed (reverse (run ->LineColPos (parse-mdo) exprs))]
-    (assert (= :normal (:type (first parsed))) "Last expression in mdo cannot be monadic bind")
+    (assert (= :normal (:type (first parsed))) "Last expression in mdo must be a normal clojure expression.")
     (reduce unparse-m-expr
             (:expr (first parsed))
             (rest parsed))))
@@ -184,3 +185,12 @@
           (symbol '<-)
           expr <- (expression)
           (always {:bound bound :expr expr :type :bind})))))
+
+;; isn't this nicer?
+(defparser let-expression' []
+  (lift #(do {:type :let :bindings %})
+        (mdo (symbol 'let)
+             (many1 (attempt (mdo bound <- (binding-form-simple)
+                                  (symbol '=)
+                                  expr <- (expression)
+                                  (always {:bound bound :expr expr})))))))
