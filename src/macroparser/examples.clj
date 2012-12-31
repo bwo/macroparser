@@ -16,17 +16,16 @@
   (>> (symbol '&) (binding-form)))
 
 (declare map-binding)
+(declare binding-form-simple)
 
 (defparser vector-binding []
   (lift #(merge {:type :vector} (zipmap [:bindings :rest :as] %))
-        (parseq (many (choice (vector (vector-binding))
-                              (map (map-binding))
-                              (symbols-but '&)))
+        (parseq (many (binding-form-simple '&))
                 (maybe (rest-part))
                 (maybe (as-part)))))
 
-(defn binding-form-simple []
-  (choice (symbol) (vector (vector-binding)) (map (map-binding))))
+(defn binding-form-simple [& exclude-symbols]
+  (choice (apply symbols-but exclude-symbols) (vector (vector-binding)) (map (map-binding))))
 
 (defparser map-binding []
   (lift #(merge {:type :map} %)
@@ -170,9 +169,7 @@
 (defmacro mdo [& exprs]
   (let [parsed (reverse (run ->LineColPos (parse-mdo) exprs))]
     (assert (= :normal (:type (first parsed))) "Last expression in mdo must be a normal clojure expression.")
-    (reduce unparse-m-expr
-            (:expr (first parsed))
-            (rest parsed))))
+    (reduce unparse-m-expr (:expr (first parsed)) (rest parsed))))
 
 ;; one can now do this, which may be taking it too far.
 (defparser monadic-bind' []
