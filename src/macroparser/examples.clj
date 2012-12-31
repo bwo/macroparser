@@ -135,6 +135,7 @@
 (defparser monadic-bind []
   ;; nb let->> is itself an "mdo"-like form.
   (let->> [bound (binding-form-simple)
+           ;; look at that blecchy underscore!
            _ (symbol '<-)
            expr (expression)]
           (always {:bound bound :expr expr :type :bind})))
@@ -145,9 +146,7 @@
              (lookahead (either (eof) (token #(not= % '<-)))))))
 
 (defparser parse-mdo []
-  (let->> [exprs (many (either+ (normal-expression) (monadic-bind)))
-           _ (eof)]
-          (always exprs)))
+  (>>1 (many (either+ (normal-expression) (monadic-bind))) (eof)))
 
 (defmacro mdo [& exprs]
   (let [parsed (reverse (run ->LineColPos (parse-mdo) exprs))]
