@@ -119,20 +119,31 @@
 ;;      (return (inc r3)))
 ;; This will likely be incomprehensible without the lineation, but
 ;; that's ok.
+;; Since we might want to perform intermediate computations without
+;; doing any monadic wrapping/unwrapping, let's also enable let
+;; expressions, like this:
+;; (mdo m1
+;;      r1 <- m2
+;;      let x = (f r1)
+;;          y = (g r1 x)
+;;      r2 <- (h x r1)
+;;      (return (i y r2)))
 ;; 1. In an mdo expression, we can have either:
-;; a regular clojure expression
-;; a "monadic bind" expression of the form name <- expression
-;; the name on the LHS of a monadic bind expression should be visible
-;; in all following expressions.
+;; (a) a regular clojure expression
+;; (b) a "monadic bind" expression of the form name <- expression
+;; (c) a let expression of the form let (name = expression)+
+;; (in (c), parens indicate grouping, *not* syntax!)
+;; the names on the LHS of a monadic bind expression or let expression
+;; should be visible in all following expressions.
 ;; 2. an mdo expression must conclude with a regular clojure
-;; expression, not a monadic bind expression.
+;; expression, not a monadic bind expression or let expression.
 ;; We will allow destructuring in the LHS of a monadic bind
 ;; expression.
 ;; We will assume that no one is attempting to use <- as the name of a
 ;; variable, because that would make things incredibly confusing.
-;; for fun, we will also allow "let destruct = expression". To do this
-;; we have to disallow use of the name "let" by itself as a normal
-;; expression. 
+;; We have to disallow the use of "let" by itself as a name in a
+;; normal clojure expression to make parsing the let expression
+;; correctly simple (possible?)
 
 (defparser monadic-bind []
   ;; nb let->> is itself an "mdo"-like form.
@@ -174,14 +185,18 @@
 ;; one can now do this, which may be taking it too far.
 (defparser monadic-bind' []
   (mdo bound <- (binding-form-simple)
-       let is-x = (= bound 'x)
-           is-y = (= bound 'y)
-       (if (or is-x is-y)
-         (always {:bound 'z :expr '(+ 1 2) :type :bind})
-         (mdo
-          (symbol '<-)
-          expr <- (expression)
-          (always {:bound bound :expr expr :type :bind})))))
+       (symbol '<-)
+       expr <- (expression)
+       (always {:bound bound :expr expr :type bind})))
+
+(defparser silly-monadic-bind
+  (mdo bound <- (binding-form-simple)
+       let bound-str = (str bound)
+       (if (= "x" bound-str)
+         (always {:bound bound :expr bound-str :type bind})
+         (mdo (symbol '<-)
+              expr <- (expression)
+              (always {:bound bound :expr expr :type bind})))))
 
 ;; isn't this nicer?
 (defparser let-expression' []
