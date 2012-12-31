@@ -57,6 +57,11 @@
   [p q]
   (either (attempt p) q))
 
+(defn choice+
+  "Like choice, but try the nth parser even if the preceding parsers did consume input."
+  [& parsers]
+  (apply choice (concat (clj/map attempt (butlast parsers)) [(last parsers)])))
+
 (defn named [name parser]
   (lift (fn [res] {name res}) parser))
 
@@ -112,6 +117,10 @@
 (defn string [] (token-err string? (expect-type "string")))
 (defn integer [] (token-err integer? (expect-type "integer")))
 (defn expression [] (token (fn [_] true)))
+(def anything expression)
+(defn anything-but [& buts]
+  (let [buts (set buts)]
+    (token (fn [inp] (not (buts inp))))))
 
 (defn flatten-1 [xs]
   (lazy-seq

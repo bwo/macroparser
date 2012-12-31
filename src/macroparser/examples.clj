@@ -131,6 +131,9 @@
 ;; expression.
 ;; We will assume that no one is attempting to use <- as the name of a
 ;; variable, because that would make things incredibly confusing.
+;; for fun, we will also allow "let destruct = expression". To do this
+;; we have to disallow use of the name "let" by itself as a normal
+;; expression. 
 
 (defparser monadic-bind []
   ;; nb let->> is itself an "mdo"-like form.
@@ -140,25 +143,52 @@
            expr (expression)]
           (always {:bound bound :expr expr :type :bind})))
 
+(defparser let-expression []
+  (lift #(do {:type :let :bindings %})
+        (>> (symbol 'let) (times 1 (let->> [bound (binding-form-simple)
+                                            _ (symbol '=)
+                                            expr (expression)]
+                                           (always {:bound bound :expr expr}))))))
+
 (defparser normal-expression []
   (lift (fn [expr] {:bound (gensym) :expr expr :type :normal})
-        (>>1 (expression)
-             (lookahead (either (eof) (token #(not= % '<-)))))))
+        (>>1 (anything-but 'let)
+             (lookahead (either (eof) (anything-but '<-))))))
 
 (defparser parse-mdo []
-  (>>1 (many (either+ (normal-expression) (monadic-bind))) (eof)))
+  (>>1 (many (choice+ (normal-expression) (monadic-bind) (let-expression))) (eof)))
+
+(defn unparse-m-expr [inside outside]
+  (case (:type outside)
+    :let `(let [~@(mapcat (fn [{:keys [bound expr]}] [(unparse-bindings bound) expr])
+                          (:bindings outside))]
+            ~inside)
+    (:normal :bind) `(>>= ~(:expr outside) (fn [~(unparse-bindings (:bound outside))]
+                                             ~inside))))
+
+(defn merge-lets [exprs]
+  (reduce (fn [[prev & exprs] cur]
+            (if (= (:type prev) (:type cur) :let)
+              (concat [(update-in cur [:bindings] concat (:bindings prev))] exprs)
+              (concat [cur prev] exprs)))
+          [(last exprs)]
+          (reverse (butlast exprs))))
 
 (defmacro mdo [& exprs]
-  (let [parsed (reverse (run ->LineColPos (parse-mdo) exprs))]
+  (let [parsed (reverse (merge-lets (run ->LineColPos (parse-mdo) exprs)))]
     (assert (= :normal (:type (first parsed))) "Last expression in mdo cannot be monadic bind")
-    (reduce (fn [inside outside]
-              `(>>= ~(:expr outside) (fn [~(unparse-bindings (:bound outside))] ~inside)))
+    (reduce unparse-m-expr
             (:expr (first parsed))
             (rest parsed))))
 
-;; one can now do:
+;; one can now do this, which may be taking it too far.
 (defparser monadic-bind' []
   (mdo bound <- (binding-form-simple)
-       (symbol '<-)
-       expr <- (expression)
-       (always {:bound bound :expr expr :type :bind})))
+       let is-x = (= bound 'x)
+       let is-y = (= bound 'y)
+       (if (or is-x is-y)
+         (always {:bound 'z :expr '(+ 1 2) :type :bind})
+         (mdo
+          (symbol '<-)
+          expr <- (expression)
+          (always {:bound bound :expr expr :type :bind})))))
