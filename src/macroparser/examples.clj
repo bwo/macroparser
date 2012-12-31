@@ -145,10 +145,10 @@
 
 (defparser let-expression []
   (lift #(do {:type :let :bindings %})
-        (>> (symbol 'let) (times 1 (let->> [bound (binding-form-simple)
-                                            _ (symbol '=)
-                                            expr (expression)]
-                                           (always {:bound bound :expr expr}))))))
+        (>> (symbol 'let) (many1 (attempt (let->> [bound (binding-form-simple)
+                                                   _ (symbol '=)
+                                                   expr (expression)]
+                                                  (always {:bound bound :expr expr})))))))
 
 (defparser normal-expression []
   (lift (fn [expr] {:bound (gensym) :expr expr :type :normal})
@@ -166,16 +166,8 @@
     (:normal :bind) `(>>= ~(:expr outside) (fn [~(unparse-bindings (:bound outside))]
                                              ~inside))))
 
-(defn merge-lets [exprs]
-  (reduce (fn [[prev & exprs] cur]
-            (if (= (:type prev) (:type cur) :let)
-              (concat [(update-in cur [:bindings] concat (:bindings prev))] exprs)
-              (concat [cur prev] exprs)))
-          [(last exprs)]
-          (reverse (butlast exprs))))
-
 (defmacro mdo [& exprs]
-  (let [parsed (reverse (merge-lets (run ->LineColPos (parse-mdo) exprs)))]
+  (let [parsed (reverse (run ->LineColPos (parse-mdo) exprs))]
     (assert (= :normal (:type (first parsed))) "Last expression in mdo cannot be monadic bind")
     (reduce unparse-m-expr
             (:expr (first parsed))
@@ -185,7 +177,7 @@
 (defparser monadic-bind' []
   (mdo bound <- (binding-form-simple)
        let is-x = (= bound 'x)
-       let is-y = (= bound 'y)
+           is-y = (= bound 'y)
        (if (or is-x is-y)
          (always {:bound 'z :expr '(+ 1 2) :type :bind})
          (mdo
