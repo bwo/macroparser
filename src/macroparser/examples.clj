@@ -189,7 +189,7 @@
        expr <- (expression)
        (always {:bound bound :expr expr :type bind})))
 
-(defparser silly-monadic-bind
+(defparser silly-monadic-bind []
   (mdo bound <- (binding-form-simple)
        let bound-str = (str bound)
        (if (= "x" bound-str)
