@@ -1,7 +1,7 @@
 (ns macroparser.core
   (:refer-clojure :exclude [symbol vector keyword char map list])
-  (:use the.parsatron)
-  (:import [the.parsatron Ok Err InputState LineColPos Continue])
+  (:use [the.parsatron :exclude [string]])
+  (:import [the.parsatron Ok Err InputState SourcePos Continue ParseError])
   (:require [clojure.core :as clj]))
 
 ;; some extra general functions
@@ -12,7 +12,7 @@
   (fn [{:keys [input pos] :as state} cok cerr eok eerr]
     (if-let [tok (first input)]
       (if-let [res (f tok)]
-        (cok res (InputState. (rest input) (increment-position pos tok)))
+        (cok res (InputState. (rest input) (inc-sourcepos pos tok)))
         (eerr (unexpect-error (str "token '" tok "'") pos)))
       (eerr (unexpect-error "end of input" pos)))))
 
@@ -21,22 +21,22 @@
   (fn [{:keys [input pos] :as state} cok cerr eok eerr]
     (if-let [tok (first input)]
       (if-let [res (f tok)]
-        (cok res (InputState. (rest input) (increment-position pos tok)))        
+        (cok res (InputState. (rest input) (inc-sourcepos pos tok)))        
         (eerr (err tok pos)))
       (eerr (err ::eof pos)))))
 
 (defn ckeof [got f] (if (= got ::eof) "end of input" (f got)))
 
 (defn run-inferior [p input nesting]
-  (let [state (InputState. input (LineColPos. nesting 1))]
+  (let [state (InputState. input (SourcePos. nesting 1))]
     (run-parser p state)))
 
 (defn expect-type [tname]
-  (fn [got pos] (error-at pos (str "expected " tname ", got " (ckeof got (fn [_] (str (type got) ": " got)))))))
+  (fn [got pos] (ParseError. pos [(str "expected " tname ", got " (ckeof got (fn [_] (str (type got) ": " got))))])))
 (defn expect-specific [thing]
-  (fn [got pos] (error-at pos (str "expected " thing ", got " (ckeof got identity)))))
+  (fn [got pos] (ParseError. pos [(str "expected " thing ", got " (ckeof got identity))])))
 (defn expect-several [things]
-  (fn [got pos] (error-at pos (str "expected one of " things ", got " (ckeof got identity)))))
+  (fn [got pos] (ParseError. pos [(str "expected one of " things ", got " (ckeof got identity))])))
 
 (defn token-err [f err]
   (token-err-by (fn [tok] (if (f tok) tok nil)) err))
@@ -151,7 +151,7 @@
                          Ok (cok#
                              (:item result#)
                              (InputState. (rest input#)
-                                          (increment-position pos# tok#)))
+                                          (inc-sourcepos pos# tok#)))
                          Err (eerr# (:errors result#))))
                      (eerr# (on-err# tok# pos#)))
                    (eerr# (on-err# ::eof pos#)))))))))

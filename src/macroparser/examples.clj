@@ -1,7 +1,7 @@
 (ns macroparser.examples
   (:refer-clojure :exclude [map vector keyword symbol char list])
   (:use [macroparser.core]
-        [the.parsatron])
+        [the.parsatron :exclude [string]])
   (:require [clojure.core :as clj]))
 
 ;;;; parsing defns
@@ -178,7 +178,7 @@
                                              ~inside))))
 
 (defmacro mdo [& exprs]
-  (let [parsed (reverse (run ->LineColPos (parse-mdo) exprs))]
+  (let [parsed (reverse (run (parse-mdo) exprs))]
     (assert (= :normal (:type (first parsed))) "Last expression in mdo must be a normal clojure expression.")
     (reduce unparse-m-expr (:expr (first parsed)) (rest parsed))))
 
