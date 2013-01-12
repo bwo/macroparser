@@ -1,12 +1,9 @@
-(ns macroparser.core
+(ns macroparser.parsers
   (:refer-clojure :exclude [symbol vector keyword char map list])
   (:use [the.parsatron :exclude [string]])
   (:import [the.parsatron Ok Err InputState SourcePos Continue ParseError])
   (:require [clojure.core :as clj]))
 
-;; some extra general functions
-
-;; match and transform a token
 (defn token-by
   [f]
   (fn [{:keys [input pos] :as state} cok cerr eok eerr]
@@ -169,3 +166,4 @@
   parsers in the cases map depending on p's result."
   [p cases]
   (bind (maybe p) #(get cases % (never))))
+
