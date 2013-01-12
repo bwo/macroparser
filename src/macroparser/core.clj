@@ -41,16 +41,14 @@
 (defn token-err [f err]
   (token-err-by (fn [tok] (if (f tok) tok nil)) err))
 
-(def >>= bind)
-
 (defn lift
-  "(lift f p) -> (>>= p (comp always f)"
+  "(lift f p) -> (bind p (comp always f)"
   [f p] (bind p (comp always f)))
 
 (defn both
   "Parse p and then q, returning the results of both in order."
   [p q]
-  (>>= p (fn [pres] (lift (fn [qres] [pres qres]) q))))
+  (bind p (fn [pres] (lift (fn [qres] [pres qres]) q))))
 
 (defn either+
   "Like either, but try the second parser even if the first parser did consume input."
@@ -164,10 +162,10 @@
   "Run p, wrapped in a maybe, without consuming input, and run one of
   the parsers in the cases map depending on p's output."
   [p cases]
-  (>>= (lookahead (maybe p)) #(get cases % (never))))
+  (bind (lookahead (maybe p)) #(get cases % (never))))
 
 (defn caseparse
   "Run p, wrapped in a maybe, consuming input, and run one of the
   parsers in the cases map depending on p's result."
   [p cases]
-  (>>= (maybe p) #(get cases % (never))))
+  (bind (maybe p) #(get cases % (never))))

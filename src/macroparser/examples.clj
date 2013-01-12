@@ -32,7 +32,7 @@
         (parseq->map
          (named :bindings
                 (choice
-                 (>>= (keywords :strs :syms :keys)
+                 (bind (keywords :strs :syms :keys)
                       #(named % (vector (many (symbol)))))
                  (named :standard
                         (many (both (binding-form-simple)
@@ -109,13 +109,13 @@
                  (unparse-arities (:arities m)))))
 
 ;; a vaguely haskellish monad syntax
-;; we assume that ">>=" is a Clojure function with semantics like
+;; we assume that "bind" is a Clojure function with semantics like
 ;; Haskell's >>=.
 ;; let's make it possible to write this, in Clojure:
 ;; (mdo m1
 ;;      r1 <- m2
 ;;      r2 <- (f r1)
-;;      r3 <- (>>= (g r2) h)
+;;      r3 <- (bind (g r2) h)
 ;;      (return (inc r3)))
 ;; This will likely be incomprehensible without the lineation, but
 ;; that's ok.
@@ -174,7 +174,7 @@
     :let `(let [~@(mapcat (fn [{:keys [bound expr]}] [(unparse-bindings bound) expr])
                           (:bindings outside))]
             ~inside)
-    (:normal :bind) `(>>= ~(:expr outside) (fn [~(unparse-bindings (:bound outside))]
+    (:normal :bind) `(bind ~(:expr outside) (fn [~(unparse-bindings (:bound outside))]
                                              ~inside))))
 
 (defmacro mdo [& exprs]
