@@ -15,6 +15,14 @@
          (either (lift clj/list (params-and-body))
                  (>>1 (many1 (list (params-and-body))) (eof)))))
 
+(defparser parse-defn-like []
+  (lift (fn [res] (assoc res :type 'defn))
+        (parseq->map
+         (named :name (symbol))
+         (named :docstring (maybe (string)))
+         (named :attr-map (maybe (map)))
+         (arities))))
+
 (defn defn-parser []
   (parseq->map
    (named :type (symbol 'defn))
@@ -22,6 +30,12 @@
    (named :docstring (maybe (string)))
    (named :attr-map (maybe (map)))
    (arities)))
+
+(defparser parse-fn-like []
+  (lift (fn [res] (assoc res :type 'fn))
+        (parseq->map
+         (named :name (maybe (symbol)))
+         (arities))))
 
 (defn fn-parser []
   (parseq->map
@@ -42,7 +56,7 @@
     (clj/map (fn [a] (list* (bindings/unparse-bindings (:params a))
                            (:body a))) arities)))
 
-(defn unparse-defn [m]
+(defn unparse-defn-like [m]
   (remove nil?
           (list* (:type m)
                  (:name m)
@@ -50,7 +64,7 @@
                  (:attr-map m)
                  (unparse-arities (:arities m)))))
 
-(defn unparse-fn [m]
+(defn unparse-fn-like [m]
   (remove nil?
           (list* (:type m)
                  (:name m)
@@ -58,5 +72,5 @@
 
 (defn unparse-function [m]
   ((case (:type m)
-     (fn fn*) unparse-fn
-     defn unparse-defn) m))
+     (fn fn*) unparse-fn-like
+     defn unparse-defn-like) m))
