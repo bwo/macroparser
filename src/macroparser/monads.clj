@@ -45,7 +45,8 @@
 ;;    computations: compute intermediate results using pure functions,
 ;;    branch in various ways, only proceed if some condition is met,
 ;;    etc. Now in fact we don't need to do anything special to support
-;;    this, as the following will work:
+;;    this, as the following will work (or would if it weren't for the
+;;    double m-return that would result):
 ;;
 ;;      (domonad [a (whatever)]
 ;;               (cond
