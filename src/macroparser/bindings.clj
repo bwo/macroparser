@@ -65,7 +65,7 @@
         as (:as v)
         rest (:rest v)]
     (vec (remove nil? (concat bindings
-                              (when rest ['& rest])
+                              (when rest ['& (unparse-bindings  rest)])
                               (when as [:as as]))))))
 
 (defn unparse-map-bindings [m]
