@@ -3,7 +3,8 @@
 This is a library for "parsing" clojure data structures, with the
 intention of making it easier to describe and extract the components
 of complex macros (though it of course need not be used for macro
-definitions).
+definitions). It uses the
+[parsatron](https://github.com/youngnh/parsatron) parsing library.
 
 ## Usage
 
