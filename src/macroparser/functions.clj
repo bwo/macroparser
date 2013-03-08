@@ -50,9 +50,7 @@
                         'defn (defn-parser)}))
 
 (defn unparse-arity [a body]
-  (if (map? body)
-    (list* (bindings/unparse-bindings a) body ())
-    (list* (bindings/unparse-bindings a) body)))
+  (list (bindings/unparse-bindings a) body))
 
 (defn unparse-arities [arities]
   (if (= 1 (count arities))
