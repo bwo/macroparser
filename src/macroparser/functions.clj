@@ -50,7 +50,7 @@
                         'defn (defn-parser)}))
 
 (defn unparse-arity [a body]
-  (list (bindings/unparse-bindings a) body))
+  (clj/list (bindings/unparse-bindings a) body))
 
 (defn unparse-arities [arities]
   (if (= 1 (count arities))
