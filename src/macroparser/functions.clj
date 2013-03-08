@@ -49,12 +49,15 @@
                         'fn* (fn-parser)
                         'defn (defn-parser)}))
 
+(defn unparse-arity [a body]
+  (if (map? body)
+    (list* (bindings/unparse-bindings a) body ())
+    (list* (bindings/unparse-bindings a body))))
+
 (defn unparse-arities [arities]
   (if (= 1 (count arities))
-    (list* (bindings/unparse-bindings (:params (first arities)))
-           (:body (first arities)))
-    (clj/map (fn [a] (list* (bindings/unparse-bindings (:params a))
-                           (:body a))) arities)))
+    (unparse-arity (:params (first arities)) (:body (first arities)))
+    (clj/map (fn [a] (unparse-arity (:params a) (:body a))) arities)))
 
 (defn unparse-defn-like [m]
   (remove nil?
