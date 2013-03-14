@@ -1,5 +1,5 @@
 (ns macroparser.parsers
-  (:refer-clojure :exclude [symbol vector keyword char map list])
+  (:refer-clojure :exclude [symbol vector keyword char map list seq])
   (:use [the.parsatron :exclude [string]])
   (:import [the.parsatron Ok Err InputState SourcePos Continue ParseError])
   (:require [clojure.core :as clj]))
@@ -119,7 +119,7 @@
 
 (defn flatten-1 [xs]
   (lazy-seq
-   (when-let [x (first (seq xs))]
+   (when-let [x (first (clj/seq xs))]
      (if (sequential? x)
        (concat x (flatten-1 (rest xs)))
        (cons x (flatten-1 (rest xs)))))))
@@ -153,7 +153,7 @@
 
 (make-container-parser vector identity)
 (make-container-parser list identity)
-(make-container-parser map (comp flatten-1 seq))
+(make-container-parser map (comp flatten-1 clj/seq))
 (make-container-parser seq identity)
 
 (defn caseparse-noconsume

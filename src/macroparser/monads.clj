@@ -1,5 +1,5 @@
 (ns macroparser.monads
-  (:refer-clojure :exclude [symbol char map vector list keyword])
+  (:refer-clojure :exclude [symbol char map vector list keyword seq])
   (:use [the.parsatron :exclude [string]]
         [macroparser.parsers])
   (:require [macroparser.bindings :as bindings]))
