@@ -154,6 +154,7 @@
 (make-container-parser vector identity)
 (make-container-parser list identity)
 (make-container-parser map (comp flatten-1 seq))
+(make-container-parser seq identity)
 
 (defn caseparse-noconsume
   "Run p, wrapped in a maybe, without consuming input, and run one of
