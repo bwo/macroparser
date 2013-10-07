@@ -58,8 +58,10 @@
    (= :vector (:type bindings)) (flatten (clj/mapcat #(when-let [b (% bindings)]  (bound-symbols b)) [:bindings :as :rest]))
    (= :map (:type bindings)) (let [[binding-type inner] (first (:bindings bindings))]
                                (case binding-type
-                                 (:str :keys :syms)  inner
-                                 :standard (concat (mapcat bound-symbols (clj/map first inner)) (:as bindings))))))
+                                 (:str :keys :syms) (if (:as bindings)
+                                                      (concat inner [(:as bindings)])
+                                                      inner)
+                                 :standard (concat (mapcat bound-symbols (clj/map first inner)) [(:as bindings)])))))
 
 (declare unparse-bindings)
 
