@@ -5,10 +5,18 @@
   (:use [the.parsatron :exclude [string]])
   (:use [macroparser.parsers]))
 
+(defn body []
+  (lift (fn [b]
+          (if (and (> (count b) 1) (map? (first b)))
+            {:prepost (first b)
+             :body (rest b)}
+            {:prepost nil
+             :body b})) (many (expression))))
 
 (defn params-and-body []
-  (parseq->map (named :params (vector (bindings/vector-binding)))
-               (named :body (many (expression)))))
+  (let->> [params (vector (bindings/vector-binding))
+           prepost-body (body)]
+          (always (merge {:params params} prepost-body))))
 
 (defparser arities []
   (named :arities
@@ -49,15 +57,16 @@
                         'fn* (fn-parser)
                         'defn (defn-parser)}))
 
-(defn unparse-arity [a body]
-  (if (seq? body)
-    (clj/list* (bindings/unparse-bindings a) body)
-    (clj/list (bindings/unparse-bindings a) body)))
+(defn unparse-arity [a prepost body]
+  (let [f (if (seq? body) clj/list* clj/list)]
+    (if prepost
+      (f (bindings/unparse-bindings a) prepost body)
+      (f (bindings/unparse-bindings a) body))))
 
 (defn unparse-arities [arities]
   (if (= 1 (count arities))
-    (unparse-arity (:params (first arities)) (:body (first arities)))
-    (clj/map (fn [a] (unparse-arity (:params a) (:body a))) arities)))
+    (unparse-arity (:params (first arities)) (:prepost (first arities)) (:body (first arities)))
+    (clj/map (fn [a] (unparse-arity (:params a) (:prepost a) (:body a))) arities)))
 
 (defn unparse-defn-like [m]
   (remove nil?

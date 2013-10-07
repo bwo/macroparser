@@ -11,3 +11,13 @@
 
 (expect '(defn foo {:attr-map 1} ([x] x) ([x y] (* x y)))
         (unparse-function (p/run (parse-defn-like) '(foo {:attr-map 1} ([x] x) ([x y] (* x y))))))
+
+(expect '(defn foo "docstring" {:attr 1} ([x] {:pre [(even? x)]} x)
+           ([x y] nil))
+        (unparse-function (p/run (defn-parser)
+                                 '(defn foo "docstring" {:attr 1} ([x] {:pre [(even? x)]} x) ([x y] nil)))))
+
+(expect '(defn foo "docstring" {:attr 1} [x] {:pre [(even? x)]} x)
+        (unparse-function (p/run (defn-parser) '(defn foo "docstring" {:attr 1} ([x] {:pre [(even? x)]} x)))))
+
+
