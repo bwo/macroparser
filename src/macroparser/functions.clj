@@ -11,7 +11,8 @@
             {:prepost (first b)
              :body (rest b)}
             {:prepost nil
-             :body b})) (many (expression))))
+             :body b}))
+        (many (expression))))
 
 (defn params-and-body []
   (let->> [params (vector (bindings/vector-binding))
