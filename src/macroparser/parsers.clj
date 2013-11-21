@@ -124,9 +124,10 @@
        (concat x (flatten-1 (rest xs)))
        (cons x (flatten-1 (rest xs)))))))
 
-(defmacro ^{:private true} make-container-parser [name preprocessor]
+(defmacro ^{:private true} make-container-parser [name & [preprocessor test]]
   (let [s (str name)
-        test (clj/symbol (str s "?"))]
+        tok (gensym "tok")
+        test (or test (clj/symbol (str s "?")))]
     `(defn ~name
        ~(str "match a " s " and run any provided parser on its contents")
        ([] (token-err ~test (expect-type ~s)))
@@ -134,27 +135,29 @@
                (let [on-err# (expect-type ~s)
                      input# (:input state#)
                      pos# (:pos state#)]
-                 (if-let [tok# (first input#)]
-                   (if (~test tok#)
+                 (if-let [~tok (first input#)]
+                   (if (~test ~tok)
                      (let [result# (run-inferior
                                     (let->> [r# p#
                                              _# (eof)]
                                             (always r#))
-                                    (~preprocessor tok#)
+                                    ~(if preprocessor
+                                       `(~preprocessor ~tok)
+                                       tok)
                                     (inc (:line pos#)))]
                        (condp instance? result#
                          Ok (cok#
                              (:item result#)
                              (InputState. (rest input#)
-                                          (inc-sourcepos pos# tok#)))
+                                          (inc-sourcepos pos# ~tok)))
                          Err (eerr# (:errors result#))))
-                     (eerr# (on-err# tok# pos#)))
+                     (eerr# (on-err# ~tok pos#)))
                    (eerr# (on-err# ::eof pos#)))))))))
 
-(make-container-parser vector identity)
-(make-container-parser list identity)
-(make-container-parser map (comp flatten-1 clj/seq))
-(make-container-parser seq identity)
+(make-container-parser vector)
+(make-container-parser list)
+(make-container-parser seq)
+(make-container-parser flattened-map (comp flatten-1 clj/seq) map?)
 
 (defn caseparse-noconsume
   "Run p, wrapped in a maybe, without consuming input, and run one of

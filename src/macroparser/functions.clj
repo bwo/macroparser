@@ -29,7 +29,7 @@
         (parseq->map
          (named :name (symbol))
          (named :docstring (maybe (string)))
-         (named :attr-map (maybe (map)))
+         (named :attr-map (maybe (flattened-map)))
          (arities))))
 
 (defn defn-parser []
@@ -37,7 +37,7 @@
    (named :type (symbol 'defn))
    (named :name (symbol))
    (named :docstring (maybe (string)))
-   (named :attr-map (maybe (map)))
+   (named :attr-map (maybe (flattened-map)))
    (arities)))
 
 (defparser parse-fn-like []

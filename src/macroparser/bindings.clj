@@ -23,7 +23,8 @@
                 (maybe (as-part)))))
 
 (defn binding-form-simple [& exclude-symbols]
-  (choice (apply symbols-but exclude-symbols) (vector (vector-binding)) (map (map-binding))))
+  (choice (apply symbols-but exclude-symbols) (vector (vector-binding))
+          (flattened-map (map-binding))))
 
 (defparser map-binding []
   (lift #(merge {:type :map} %)
@@ -36,10 +37,10 @@
                         (many (both (binding-form-simple)
                                     (expression))))))
          (caseparse-noconsume (keywords :or :as)
-                              {:or (parseq->map (named :or (or-part (map)))
+                              {:or (parseq->map (named :or (or-part (flattened-map)))
                                                 (maybe (named :as (as-part))))
                                :as (parseq->map (named :as (as-part))
-                                                (maybe (named :or (or-part (map)))))
+                                                (maybe (named :or (or-part (flattened-map)))))
                                nil (always {:or nil :as nil})}))))
 
 (defparser binding-form []
