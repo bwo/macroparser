@@ -87,3 +87,19 @@
   ((case (:type m)
      (fn fn*) unparse-fn-like
      defn unparse-defn-like) m))
+
+(defn update-bodies
+  "Update the bodies of the function definition in defn-forms by the
+   function f. f will be called with, and should return, a list of forms. E.g.:
+
+   (update-bodies '(foo [x] (println x) (inc x)) (fn [body] `((clojure.tools.logging/spy ~@body))))
+    --> (defn foo [x] (lg/spy (println x) (inc x)))
+
+   Note the return value: a list of forms, containing a single form.
+
+   Note that wrapping function bodies (as in the above example) can interfere with \"recur\"."
+  [defn-forms f]
+  (let [parsed (run (parse-defn-like) defn-forms)]
+    (-> (update-in parsed [:arities]
+                   (partial clj/map #(update-in % [:body] f)))
+        unparse-defn-like)))
