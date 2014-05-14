@@ -81,7 +81,7 @@
         tail (into {} (remove nil? [(when as [:as as]) (when or [:or or])]))]
     (merge tail
            (case binding-type
-             (:strs :keys :syms) {binding-type bindings}
+             (:strs :keys :syms) {binding-type (vec bindings)}
              :standard (into {} (clj/map (fn [[k v]] [(unparse-bindings k) v]) bindings))))))
 
 (defn unparse-bindings [p]
